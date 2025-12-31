@@ -3,10 +3,30 @@
 import { useState, useEffect, useRef } from 'react';
 import { useRouter } from 'next/navigation';
 import Link from 'next/link';
+import Dashboard from '@/components/Dashboard';
 
 interface Message {
   role: 'user' | 'assistant';
   content: string;
+}
+
+interface Debt {
+  name: string;
+  type: string;
+  balance: number | null;
+  interestRate: number | null;
+  monthlyPayment: number;
+  promoEndDate: string | null;
+  promoRate: number | null;
+  postPromoRate: number | null;
+}
+
+interface Goal {
+  name: string;
+  target: number;
+  current: number;
+  priority: number;
+  percentComplete: number;
 }
 
 interface StatusData {
@@ -15,6 +35,9 @@ interface StatusData {
   daysUntilPayday: number;
   lastBalanceUpdate?: string;
   lastTransactionImport?: string;
+  debts: Debt[];
+  goals: Goal[];
+  totalBudget: number;
 }
 
 export default function Home() {
@@ -62,7 +85,10 @@ export default function Home() {
       setStatus({
         totalSavings: data.totalSavings,
         budgetRemaining: data.currentMonth.budgetRemaining,
-        daysUntilPayday: data.daysUntilPayday
+        daysUntilPayday: data.daysUntilPayday,
+        debts: data.debts,
+        goals: data.goals,
+        totalBudget: data.budget.totalBudget
       });
     } catch (error) {
       console.error('Failed to fetch status:', error);
@@ -136,9 +162,9 @@ export default function Home() {
       {/* Stale data warning */}
       {showStaleWarning && (
         <div className="bg-amber-900/50 border-b border-amber-800 px-4 py-2">
-          <div className="max-w-2xl mx-auto flex items-center justify-between text-sm">
+          <div className="max-w-6xl mx-auto flex items-center justify-between text-sm">
             <span className="text-amber-200">
-              ⏰ Your balances may be outdated
+              Your balances may be outdated
             </span>
             <button
               onClick={() => setShowUpdateModal(true)}
@@ -152,7 +178,7 @@ export default function Home() {
 
       {/* Header */}
       <header className="flex-shrink-0 border-b border-zinc-800 bg-zinc-900 px-4 py-3">
-        <div className="max-w-2xl mx-auto">
+        <div className="max-w-6xl mx-auto">
           <div className="flex items-center justify-between">
             <h1 className="text-lg font-semibold text-zinc-100">Financial Advisor</h1>
             <Link
@@ -162,117 +188,117 @@ export default function Home() {
               Settings
             </Link>
           </div>
-          {status && (
-            <div className="flex gap-4 mt-2 text-sm">
-              <div className="flex items-center gap-1">
-                <span className="text-zinc-500">Savings:</span>
-                <span className="text-emerald-400 font-medium">
-                  ${status.totalSavings.toLocaleString()}
-                </span>
-              </div>
-              <div className="flex items-center gap-1">
-                <span className="text-zinc-500">Budget left:</span>
-                <span className={status.budgetRemaining > 0 ? 'text-emerald-400' : 'text-red-400'}>
-                  ${status.budgetRemaining.toLocaleString()}
-                </span>
-              </div>
-              <div className="flex items-center gap-1">
-                <span className="text-zinc-500">Payday:</span>
-                <span className="text-zinc-300">{status.daysUntilPayday}d</span>
-              </div>
-            </div>
-          )}
         </div>
       </header>
 
-      {/* Messages */}
-      <main className="flex-1 overflow-y-auto px-4 py-6">
-        <div className="max-w-2xl mx-auto space-y-4">
-          {messages.length === 0 && (
-            <div className="text-center py-12">
-              <p className="text-zinc-500 text-lg">Ask me anything about your finances</p>
-              <p className="text-zinc-600 text-sm mt-2">
-                &quot;Can I buy...&quot;, &quot;How am I doing?&quot;, &quot;Should I pay off...&quot;
-              </p>
-            </div>
-          )}
+      {/* Main Content - Split Layout */}
+      <div className="flex-1 flex overflow-hidden">
+        {/* Dashboard Sidebar */}
+        {status && status.debts && (
+          <aside className="w-80 flex-shrink-0 border-r border-zinc-800 overflow-y-auto p-4 hidden lg:block">
+            <Dashboard
+              debts={status.debts}
+              goals={status.goals || []}
+              totalSavings={status.totalSavings}
+              budgetRemaining={status.budgetRemaining}
+              totalBudget={status.totalBudget || 0}
+              daysUntilPayday={status.daysUntilPayday}
+            />
+          </aside>
+        )}
 
-          {messages.map((msg, i) => (
-            <div
-              key={i}
-              className={`flex ${msg.role === 'user' ? 'justify-end' : 'justify-start'}`}
-            >
-              <div
-                className={`max-w-[85%] rounded-2xl px-4 py-3 ${
-                  msg.role === 'user'
-                    ? 'bg-blue-600 text-white'
-                    : 'bg-zinc-800 text-zinc-100'
-                }`}
-              >
-                <p className="whitespace-pre-wrap">{msg.content}</p>
-              </div>
-            </div>
-          ))}
-
-          {isLoading && (
-            <div className="flex justify-start">
-              <div className="bg-zinc-800 rounded-2xl px-4 py-3">
-                <div className="flex gap-1">
-                  <span className="w-2 h-2 bg-zinc-500 rounded-full animate-bounce" style={{ animationDelay: '0ms' }} />
-                  <span className="w-2 h-2 bg-zinc-500 rounded-full animate-bounce" style={{ animationDelay: '150ms' }} />
-                  <span className="w-2 h-2 bg-zinc-500 rounded-full animate-bounce" style={{ animationDelay: '300ms' }} />
+        {/* Chat Area */}
+        <div className="flex-1 flex flex-col min-w-0">
+          {/* Messages */}
+          <main className="flex-1 overflow-y-auto px-4 py-6">
+            <div className="max-w-2xl mx-auto space-y-4">
+              {messages.length === 0 && (
+                <div className="text-center py-12">
+                  <p className="text-zinc-500 text-lg">Ask me anything about your finances</p>
+                  <p className="text-zinc-600 text-sm mt-2">
+                    &quot;Can I buy...&quot;, &quot;How am I doing?&quot;, &quot;Should I pay off...&quot;
+                  </p>
                 </div>
+              )}
+
+              {messages.map((msg, i) => (
+                <div
+                  key={i}
+                  className={`flex ${msg.role === 'user' ? 'justify-end' : 'justify-start'}`}
+                >
+                  <div
+                    className={`max-w-[85%] rounded-2xl px-4 py-3 ${
+                      msg.role === 'user'
+                        ? 'bg-blue-600 text-white'
+                        : 'bg-zinc-800 text-zinc-100'
+                    }`}
+                  >
+                    <p className="whitespace-pre-wrap">{msg.content}</p>
+                  </div>
+                </div>
+              ))}
+
+              {isLoading && (
+                <div className="flex justify-start">
+                  <div className="bg-zinc-800 rounded-2xl px-4 py-3">
+                    <div className="flex gap-1">
+                      <span className="w-2 h-2 bg-zinc-500 rounded-full animate-bounce" style={{ animationDelay: '0ms' }} />
+                      <span className="w-2 h-2 bg-zinc-500 rounded-full animate-bounce" style={{ animationDelay: '150ms' }} />
+                      <span className="w-2 h-2 bg-zinc-500 rounded-full animate-bounce" style={{ animationDelay: '300ms' }} />
+                    </div>
+                  </div>
+                </div>
+              )}
+
+              <div ref={messagesEndRef} />
+            </div>
+          </main>
+
+          {/* Quick Actions */}
+          {messages.length === 0 && (
+            <div className="flex-shrink-0 px-4 pb-2">
+              <div className="max-w-2xl mx-auto flex gap-2 overflow-x-auto">
+                {quickActions.map((action, i) => (
+                  <button
+                    key={i}
+                    onClick={() => {
+                      if (action.message.endsWith(' ')) {
+                        setInput(action.message);
+                      } else {
+                        sendMessage(action.message);
+                      }
+                    }}
+                    className="flex-shrink-0 px-4 py-2 rounded-full border border-zinc-700 text-zinc-300 text-sm hover:bg-zinc-800 transition-colors"
+                  >
+                    {action.label}
+                  </button>
+                ))}
               </div>
             </div>
           )}
 
-          <div ref={messagesEndRef} />
-        </div>
-      </main>
-
-      {/* Quick Actions */}
-      {messages.length === 0 && (
-        <div className="flex-shrink-0 px-4 pb-2">
-          <div className="max-w-2xl mx-auto flex gap-2 overflow-x-auto">
-            {quickActions.map((action, i) => (
+          {/* Input */}
+          <footer className="flex-shrink-0 border-t border-zinc-800 bg-zinc-900 px-4 py-4">
+            <form onSubmit={handleSubmit} className="max-w-2xl mx-auto flex gap-3">
+              <input
+                type="text"
+                value={input}
+                onChange={(e) => setInput(e.target.value)}
+                placeholder="Ask about your finances..."
+                className="flex-1 bg-zinc-800 border border-zinc-700 rounded-full px-4 py-3 text-zinc-100 placeholder-zinc-500 focus:outline-none focus:border-zinc-600"
+                disabled={isLoading}
+              />
               <button
-                key={i}
-                onClick={() => {
-                  if (action.message.endsWith(' ')) {
-                    setInput(action.message);
-                  } else {
-                    sendMessage(action.message);
-                  }
-                }}
-                className="flex-shrink-0 px-4 py-2 rounded-full border border-zinc-700 text-zinc-300 text-sm hover:bg-zinc-800 transition-colors"
+                type="submit"
+                disabled={!input.trim() || isLoading}
+                className="px-6 py-3 bg-blue-600 text-white rounded-full font-medium hover:bg-blue-700 disabled:opacity-50 disabled:cursor-not-allowed transition-colors"
               >
-                {action.label}
+                Send
               </button>
-            ))}
-          </div>
+            </form>
+          </footer>
         </div>
-      )}
-
-      {/* Input */}
-      <footer className="flex-shrink-0 border-t border-zinc-800 bg-zinc-900 px-4 py-4">
-        <form onSubmit={handleSubmit} className="max-w-2xl mx-auto flex gap-3">
-          <input
-            type="text"
-            value={input}
-            onChange={(e) => setInput(e.target.value)}
-            placeholder="Ask about your finances..."
-            className="flex-1 bg-zinc-800 border border-zinc-700 rounded-full px-4 py-3 text-zinc-100 placeholder-zinc-500 focus:outline-none focus:border-zinc-600"
-            disabled={isLoading}
-          />
-          <button
-            type="submit"
-            disabled={!input.trim() || isLoading}
-            className="px-6 py-3 bg-blue-600 text-white rounded-full font-medium hover:bg-blue-700 disabled:opacity-50 disabled:cursor-not-allowed transition-colors"
-          >
-            Send
-          </button>
-        </form>
-      </footer>
+      </div>
 
       {/* Update Balances Modal */}
       {showUpdateModal && (

@@ -19,6 +19,9 @@ export interface FinancialSnapshot {
     interestRate: number | null;
     monthlyPayment: number;
     notes: string | null;
+    promoEndDate: string | null;
+    promoRate: number | null;
+    postPromoRate: number | null;
   }[];
   totalDebtPayments: number;
   budget: {
@@ -150,7 +153,10 @@ export async function getFinancialSnapshot(): Promise<FinancialSnapshot> {
       balance: d.current_balance ? Number(d.current_balance) : null,
       interestRate: d.interest_rate ? Number(d.interest_rate) : null,
       monthlyPayment: Number(d.monthly_payment),
-      notes: d.notes
+      notes: d.notes,
+      promoEndDate: d.promo_end_date,
+      promoRate: d.promo_rate ? Number(d.promo_rate) : null,
+      postPromoRate: d.post_promo_rate ? Number(d.post_promo_rate) : null
     })),
     totalDebtPayments,
     budget: {
@@ -213,7 +219,20 @@ ${snapshot.accounts.map(a => `- ${a.name} (${a.type}): $${a.balance.toLocaleStri
 **Target Savings:** $${snapshot.targetMonthlySavings.toLocaleString()}/month
 
 **Debts:**
-${snapshot.debts.map(d => `- ${d.name}: ${d.balance ? `$${d.balance.toLocaleString()} remaining` : 'balance unknown'}${d.interestRate ? ` at ${d.interestRate}% interest` : ''}, paying $${d.monthlyPayment}/month${d.notes ? `. ${d.notes}` : ''}`).join('\n')}
+${snapshot.debts.map(d => {
+  let debtLine = `- ${d.name}: ${d.balance ? `$${d.balance.toLocaleString()} remaining` : 'balance unknown'}`;
+  if (d.promoEndDate) {
+    const promoEnd = new Date(d.promoEndDate);
+    const today = new Date();
+    const monthsLeft = Math.ceil((promoEnd.getTime() - today.getTime()) / (1000 * 60 * 60 * 24 * 30));
+    debtLine += ` at ${d.promoRate || 0}% (PROMO ends ${promoEnd.toLocaleDateString('en-US', { month: 'short', year: 'numeric' })} - ${monthsLeft} months left, then ${d.postPromoRate}%)`;
+  } else if (d.interestRate) {
+    debtLine += ` at ${d.interestRate}%`;
+  }
+  debtLine += `, paying $${d.monthlyPayment}/month`;
+  if (d.notes) debtLine += `. ${d.notes}`;
+  return debtLine;
+}).join('\n')}
 
 **Goals (in priority order):**
 ${snapshot.goals.map(g => `${g.priority}. ${g.name}: $${g.current.toLocaleString()}/$${g.target.toLocaleString()} (${g.percentComplete}%)`).join('\n')}
@@ -246,6 +265,19 @@ ${snapshot.rules.map(r => `- ${r.name}: if ${r.condition} then ${r.action}`).joi
 - If emergency fund < $10,000: Strongly discourage non-essential large purchases
 - If delivery spending MTD > $100: Warn about delivery habit
 - If dining + bars MTD > $400: Flag food spending
+
+## CRITICAL: Capital One Promo Alert
+${snapshot.debts.filter(d => d.promoEndDate).map(d => {
+  const promoEnd = new Date(d.promoEndDate!);
+  const today = new Date();
+  const monthsLeft = Math.ceil((promoEnd.getTime() - today.getTime()) / (1000 * 60 * 60 * 24 * 30));
+  const monthlyNeeded = d.balance ? Math.ceil(d.balance / monthsLeft) : 0;
+  return `The ${d.name} has $${d.balance?.toLocaleString()} at 0% APR that MUST be paid off by ${promoEnd.toLocaleDateString('en-US', { month: 'long', year: 'numeric' })} or it jumps to ${d.postPromoRate}% APR.
+- ${monthsLeft} months remaining
+- Need to pay ~$${monthlyNeeded.toLocaleString()}/month to pay off in time
+- Current payment: $${d.monthlyPayment}/month
+- ${d.monthlyPayment >= monthlyNeeded ? '✅ ON TRACK' : '⚠️ NEED TO INCREASE PAYMENTS'}`;
+}).join('\n\n')}
 
 ## Response Style
 

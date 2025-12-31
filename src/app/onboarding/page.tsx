@@ -24,6 +24,7 @@ interface Goal {
   name: string;
   target_amount: number;
   current_amount: number;
+  monthly_contribution: number;
   notes: string | null;
 }
 
@@ -109,6 +110,7 @@ export default function OnboardingPage() {
               name: g.name,
               targetAmount: g.target_amount,
               currentAmount: g.current_amount,
+              monthlyContribution: g.monthly_contribution,
               notes: g.notes
             }))
           })
@@ -200,6 +202,7 @@ export default function OnboardingPage() {
       name: '',
       target_amount: 0,
       current_amount: 0,
+      monthly_contribution: 0,
       notes: null
     }]);
   };
@@ -418,30 +421,43 @@ export default function OnboardingPage() {
                       ✕
                     </button>
                   </div>
-                  <div className="grid grid-cols-2 gap-3">
+                  <div className="grid grid-cols-3 gap-3">
                     <div>
-                      <label className="text-zinc-500 text-xs">Target Amount</label>
+                      <label className="text-zinc-500 text-xs">Target</label>
                       <div className="flex items-center gap-1 mt-1">
                         <span className="text-zinc-500">$</span>
                         <input
                           type="number"
                           value={goal.target_amount || ''}
                           onChange={(e) => updateGoal(i, 'target_amount', parseFloat(e.target.value) || 0)}
-                          placeholder="0.00"
-                          className="flex-1 bg-zinc-800 border border-zinc-700 rounded-lg px-3 py-2 text-right focus:outline-none focus:border-zinc-600"
+                          placeholder="0"
+                          className="flex-1 bg-zinc-800 border border-zinc-700 rounded-lg px-2 py-2 text-right focus:outline-none focus:border-zinc-600 text-sm"
                         />
                       </div>
                     </div>
                     <div>
-                      <label className="text-zinc-500 text-xs">Current Progress</label>
+                      <label className="text-zinc-500 text-xs">Current</label>
                       <div className="flex items-center gap-1 mt-1">
                         <span className="text-zinc-500">$</span>
                         <input
                           type="number"
                           value={goal.current_amount || ''}
                           onChange={(e) => updateGoal(i, 'current_amount', parseFloat(e.target.value) || 0)}
-                          placeholder="0.00"
-                          className="flex-1 bg-zinc-800 border border-zinc-700 rounded-lg px-3 py-2 text-right focus:outline-none focus:border-zinc-600"
+                          placeholder="0"
+                          className="flex-1 bg-zinc-800 border border-zinc-700 rounded-lg px-2 py-2 text-right focus:outline-none focus:border-zinc-600 text-sm"
+                        />
+                      </div>
+                    </div>
+                    <div>
+                      <label className="text-zinc-500 text-xs">/month</label>
+                      <div className="flex items-center gap-1 mt-1">
+                        <span className="text-zinc-500">$</span>
+                        <input
+                          type="number"
+                          value={goal.monthly_contribution || ''}
+                          onChange={(e) => updateGoal(i, 'monthly_contribution', parseFloat(e.target.value) || 0)}
+                          placeholder="0"
+                          className="flex-1 bg-zinc-800 border border-zinc-700 rounded-lg px-2 py-2 text-right focus:outline-none focus:border-zinc-600 text-sm"
                         />
                       </div>
                     </div>

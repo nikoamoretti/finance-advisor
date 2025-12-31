@@ -40,6 +40,7 @@ export async function POST(request: NextRequest) {
             name: goal.name,
             target_amount: goal.targetAmount,
             current_amount: goal.currentAmount,
+            monthly_contribution: goal.monthlyContribution || 0,
             notes: goal.notes
           })
           .eq('id', goal.id);
@@ -49,6 +50,7 @@ export async function POST(request: NextRequest) {
           name: goal.name,
           target_amount: goal.targetAmount,
           current_amount: goal.currentAmount || 0,
+          monthly_contribution: goal.monthlyContribution || 0,
           priority: goal.priority || 99,
           notes: goal.notes
         });
