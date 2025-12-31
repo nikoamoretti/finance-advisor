@@ -31,12 +31,17 @@ export async function POST(request: NextRequest) {
       );
     }
 
-    // Update each goal with the new current amount
+    // Update or create each goal
     for (const goal of goals) {
       if (goal.id) {
         await supabase
           .from('goals')
-          .update({ current_amount: goal.currentAmount })
+          .update({
+            name: goal.name,
+            target_amount: goal.targetAmount,
+            current_amount: goal.currentAmount,
+            notes: goal.notes
+          })
           .eq('id', goal.id);
       } else if (goal.name) {
         // New goal

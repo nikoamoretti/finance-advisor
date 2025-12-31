@@ -11,7 +11,7 @@ interface Account {
 }
 
 interface Debt {
-  id: string;
+  id?: string;
   name: string;
   type: string;
   monthly_payment: number;
@@ -20,7 +20,7 @@ interface Debt {
 }
 
 interface Goal {
-  id: string;
+  id?: string;
   name: string;
   target_amount: number;
   current_amount: number;
@@ -91,8 +91,11 @@ export default function OnboardingPage() {
           body: JSON.stringify({
             debts: debts.map(d => ({
               id: d.id,
+              name: d.name,
+              type: d.type,
               currentBalance: d.current_balance,
-              interestRate: d.interest_rate
+              interestRate: d.interest_rate,
+              monthlyPayment: d.monthly_payment
             }))
           })
         });
@@ -103,7 +106,10 @@ export default function OnboardingPage() {
           body: JSON.stringify({
             goals: goals.map(g => ({
               id: g.id,
-              currentAmount: g.current_amount
+              name: g.name,
+              targetAmount: g.target_amount,
+              currentAmount: g.current_amount,
+              notes: g.notes
             }))
           })
         });
@@ -169,16 +175,43 @@ export default function OnboardingPage() {
     setAccounts(accounts.filter((_, i) => i !== index));
   };
 
-  const updateDebt = (index: number, field: 'current_balance' | 'interest_rate', value: number | null) => {
+  const addDebt = () => {
+    setDebts([...debts, {
+      name: '',
+      type: 'other',
+      monthly_payment: 0,
+      current_balance: null,
+      interest_rate: null
+    }]);
+  };
+
+  const updateDebt = (index: number, field: keyof Debt, value: string | number | null) => {
     const updated = [...debts];
     updated[index] = { ...updated[index], [field]: value };
     setDebts(updated);
   };
 
-  const updateGoal = (index: number, value: number) => {
+  const removeDebt = (index: number) => {
+    setDebts(debts.filter((_, i) => i !== index));
+  };
+
+  const addGoal = () => {
+    setGoals([...goals, {
+      name: '',
+      target_amount: 0,
+      current_amount: 0,
+      notes: null
+    }]);
+  };
+
+  const updateGoal = (index: number, field: keyof Goal, value: string | number | null) => {
     const updated = [...goals];
-    updated[index] = { ...updated[index], current_amount: value };
+    updated[index] = { ...updated[index], [field]: value };
     setGoals(updated);
+  };
+
+  const removeGoal = (index: number) => {
+    setGoals(goals.filter((_, i) => i !== index));
   };
 
   const totalCash = accounts.reduce((sum, a) => sum + (a.balance || 0), 0);
@@ -280,51 +313,80 @@ export default function OnboardingPage() {
             <div>
               <h2 className="text-lg font-medium">Debt Balances</h2>
               <p className="text-zinc-500 text-sm mt-1">
-                What&apos;s the current balance on each?
+                Add your debts and current balances
               </p>
             </div>
 
             <div className="space-y-4">
               {debts.map((debt, i) => (
-                <div key={debt.id} className="bg-zinc-900 rounded-xl p-4 space-y-3">
-                  <div>
-                    <div className="font-medium">{debt.name}</div>
-                    <div className="text-zinc-500 text-sm">
-                      Monthly payment: ${debt.monthly_payment}
-                      {debt.interest_rate && ` | ${debt.interest_rate}% interest`}
+                <div key={debt.id || i} className="bg-zinc-900 rounded-xl p-4 space-y-3">
+                  <div className="flex justify-between items-center">
+                    <input
+                      type="text"
+                      value={debt.name}
+                      onChange={(e) => updateDebt(i, 'name', e.target.value)}
+                      placeholder="Debt name (e.g., Car Loan)"
+                      className="flex-1 bg-transparent text-zinc-100 font-medium focus:outline-none"
+                    />
+                    <button
+                      onClick={() => removeDebt(i)}
+                      className="text-zinc-500 hover:text-red-400 ml-2"
+                    >
+                      ✕
+                    </button>
+                  </div>
+                  <div className="grid grid-cols-2 gap-3">
+                    <div>
+                      <label className="text-zinc-500 text-xs">Current Balance</label>
+                      <div className="flex items-center gap-1 mt-1">
+                        <span className="text-zinc-500">$</span>
+                        <input
+                          type="number"
+                          value={debt.current_balance ?? ''}
+                          onChange={(e) => updateDebt(i, 'current_balance', parseFloat(e.target.value) || null)}
+                          placeholder="0.00"
+                          className="flex-1 bg-zinc-800 border border-zinc-700 rounded-lg px-3 py-2 text-right focus:outline-none focus:border-zinc-600"
+                        />
+                      </div>
+                    </div>
+                    <div>
+                      <label className="text-zinc-500 text-xs">Monthly Payment</label>
+                      <div className="flex items-center gap-1 mt-1">
+                        <span className="text-zinc-500">$</span>
+                        <input
+                          type="number"
+                          value={debt.monthly_payment || ''}
+                          onChange={(e) => updateDebt(i, 'monthly_payment', parseFloat(e.target.value) || 0)}
+                          placeholder="0.00"
+                          className="flex-1 bg-zinc-800 border border-zinc-700 rounded-lg px-3 py-2 text-right focus:outline-none focus:border-zinc-600"
+                        />
+                      </div>
                     </div>
                   </div>
-                  <div className="flex items-center gap-2">
-                    <span className="text-zinc-500">$</span>
-                    <input
-                      type="number"
-                      value={debt.current_balance ?? ''}
-                      onChange={(e) => updateDebt(i, 'current_balance', parseFloat(e.target.value) || null)}
-                      placeholder="Current balance"
-                      className="flex-1 bg-zinc-800 border border-zinc-700 rounded-lg px-3 py-2 text-right focus:outline-none focus:border-zinc-600"
-                    />
-                  </div>
-                  {!debt.interest_rate && (
-                    <div className="flex items-center gap-2">
+                  <div>
+                    <label className="text-zinc-500 text-xs">Interest Rate (optional)</label>
+                    <div className="flex items-center gap-1 mt-1">
                       <input
                         type="number"
+                        step="0.1"
                         value={debt.interest_rate ?? ''}
                         onChange={(e) => updateDebt(i, 'interest_rate', parseFloat(e.target.value) || null)}
-                        placeholder="Interest rate %"
-                        className="flex-1 bg-zinc-800 border border-zinc-700 rounded-lg px-3 py-2 focus:outline-none focus:border-zinc-600"
+                        placeholder="0.0"
+                        className="w-24 bg-zinc-800 border border-zinc-700 rounded-lg px-3 py-2 focus:outline-none focus:border-zinc-600"
                       />
                       <span className="text-zinc-500">%</span>
                     </div>
-                  )}
+                  </div>
                 </div>
               ))}
-
-              {debts.length === 0 && (
-                <div className="text-zinc-500 text-center py-8">
-                  No debts configured yet
-                </div>
-              )}
             </div>
+
+            <button
+              onClick={addDebt}
+              className="text-blue-400 hover:text-blue-300"
+            >
+              + Add a debt
+            </button>
           </div>
         )}
 
@@ -334,45 +396,74 @@ export default function OnboardingPage() {
             <div>
               <h2 className="text-lg font-medium">Savings Goals</h2>
               <p className="text-zinc-500 text-sm mt-1">
-                How much progress have you made?
+                What are you saving for?
               </p>
             </div>
 
             <div className="space-y-4">
               {goals.map((goal, i) => (
-                <div key={goal.id} className="bg-zinc-900 rounded-xl p-4 space-y-3">
-                  <div>
-                    <div className="font-medium">{goal.name}</div>
-                    <div className="text-zinc-500 text-sm">
-                      Target: ${goal.target_amount.toLocaleString()}
-                      {goal.notes && ` · ${goal.notes}`}
+                <div key={goal.id || i} className="bg-zinc-900 rounded-xl p-4 space-y-3">
+                  <div className="flex justify-between items-center">
+                    <input
+                      type="text"
+                      value={goal.name}
+                      onChange={(e) => updateGoal(i, 'name', e.target.value)}
+                      placeholder="Goal name (e.g., Emergency Fund)"
+                      className="flex-1 bg-transparent text-zinc-100 font-medium focus:outline-none"
+                    />
+                    <button
+                      onClick={() => removeGoal(i)}
+                      className="text-zinc-500 hover:text-red-400 ml-2"
+                    >
+                      ✕
+                    </button>
+                  </div>
+                  <div className="grid grid-cols-2 gap-3">
+                    <div>
+                      <label className="text-zinc-500 text-xs">Target Amount</label>
+                      <div className="flex items-center gap-1 mt-1">
+                        <span className="text-zinc-500">$</span>
+                        <input
+                          type="number"
+                          value={goal.target_amount || ''}
+                          onChange={(e) => updateGoal(i, 'target_amount', parseFloat(e.target.value) || 0)}
+                          placeholder="0.00"
+                          className="flex-1 bg-zinc-800 border border-zinc-700 rounded-lg px-3 py-2 text-right focus:outline-none focus:border-zinc-600"
+                        />
+                      </div>
+                    </div>
+                    <div>
+                      <label className="text-zinc-500 text-xs">Current Progress</label>
+                      <div className="flex items-center gap-1 mt-1">
+                        <span className="text-zinc-500">$</span>
+                        <input
+                          type="number"
+                          value={goal.current_amount || ''}
+                          onChange={(e) => updateGoal(i, 'current_amount', parseFloat(e.target.value) || 0)}
+                          placeholder="0.00"
+                          className="flex-1 bg-zinc-800 border border-zinc-700 rounded-lg px-3 py-2 text-right focus:outline-none focus:border-zinc-600"
+                        />
+                      </div>
                     </div>
                   </div>
-                  <div className="flex items-center gap-2">
-                    <span className="text-zinc-500">$</span>
-                    <input
-                      type="number"
-                      value={goal.current_amount || ''}
-                      onChange={(e) => updateGoal(i, parseFloat(e.target.value) || 0)}
-                      placeholder="Current progress"
-                      className="flex-1 bg-zinc-800 border border-zinc-700 rounded-lg px-3 py-2 text-right focus:outline-none focus:border-zinc-600"
-                    />
-                  </div>
-                  <div className="h-2 bg-zinc-800 rounded-full overflow-hidden">
-                    <div
-                      className="h-full bg-emerald-500 transition-all"
-                      style={{ width: `${Math.min(100, (goal.current_amount / goal.target_amount) * 100)}%` }}
-                    />
-                  </div>
+                  {goal.target_amount > 0 && (
+                    <div className="h-2 bg-zinc-800 rounded-full overflow-hidden">
+                      <div
+                        className="h-full bg-emerald-500 transition-all"
+                        style={{ width: `${Math.min(100, (goal.current_amount / goal.target_amount) * 100)}%` }}
+                      />
+                    </div>
+                  )}
                 </div>
               ))}
-
-              {goals.length === 0 && (
-                <div className="text-zinc-500 text-center py-8">
-                  No goals configured yet
-                </div>
-              )}
             </div>
+
+            <button
+              onClick={addGoal}
+              className="text-blue-400 hover:text-blue-300"
+            >
+              + Add a goal
+            </button>
           </div>
         )}
 
