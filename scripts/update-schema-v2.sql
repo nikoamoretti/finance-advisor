@@ -18,7 +18,7 @@ DELETE FROM user_config;
 
 -- User config
 INSERT INTO user_config (name, net_monthly_income, pay_schedule, onboarding_complete)
-VALUES ('Nico', 11840.00, 'semi-monthly-15-last', FALSE);
+VALUES ('Nico', 11840.00, 'semi-monthly-15-last', TRUE);
 
 -- Accounts
 INSERT INTO accounts (name, type, institution, current_balance) VALUES
