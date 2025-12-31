@@ -29,8 +29,35 @@ interface Goal {
   percentComplete: number;
 }
 
+interface CategorySpending {
+  category: string;
+  spent: number;
+  budget: number;
+  remaining: number;
+  percentUsed: number;
+  isOver: boolean;
+}
+
+interface PayPeriodInfo {
+  startDate: Date;
+  endDate: Date;
+  dayInPeriod: number;
+  totalDays: number;
+  daysRemaining: number;
+}
+
+interface DiscretionarySpending {
+  totalBudget: number;
+  totalSpent: number;
+  remaining: number;
+  byCategory: CategorySpending[];
+}
+
 interface StatusData {
   totalSavings: number;
+  totalCash: number;
+  totalInvestments: number;
+  totalCreditCardDebt: number;
   budgetRemaining: number;
   daysUntilPayday: number;
   lastBalanceUpdate?: string;
@@ -38,6 +65,10 @@ interface StatusData {
   debts: Debt[];
   goals: Goal[];
   totalBudget: number;
+  dailySpendingLimit: number;
+  spendingStatus: 'safe' | 'caution' | 'stop';
+  payPeriod?: PayPeriodInfo;
+  discretionarySpending?: DiscretionarySpending;
 }
 
 export default function Home() {
@@ -84,11 +115,18 @@ export default function Home() {
       const data = await statusRes.json();
       setStatus({
         totalSavings: data.totalSavings,
+        totalCash: data.totalCash,
+        totalInvestments: data.totalInvestments,
+        totalCreditCardDebt: data.totalCreditCardDebt,
         budgetRemaining: data.currentMonth.budgetRemaining,
         daysUntilPayday: data.daysUntilPayday,
         debts: data.debts,
         goals: data.goals,
-        totalBudget: data.budget.totalBudget
+        totalBudget: data.budget.totalBudget,
+        dailySpendingLimit: data.dailySpendingLimit,
+        spendingStatus: data.spendingStatus,
+        payPeriod: data.payPeriod,
+        discretionarySpending: data.discretionarySpending
       });
     } catch (error) {
       console.error('Failed to fetch status:', error);
@@ -200,9 +238,16 @@ export default function Home() {
               debts={status.debts}
               goals={status.goals || []}
               totalSavings={status.totalSavings}
+              totalCash={status.totalCash}
+              totalInvestments={status.totalInvestments}
+              totalCreditCardDebt={status.totalCreditCardDebt}
               budgetRemaining={status.budgetRemaining}
               totalBudget={status.totalBudget || 0}
               daysUntilPayday={status.daysUntilPayday}
+              dailySpendingLimit={status.dailySpendingLimit}
+              spendingStatus={status.spendingStatus}
+              payPeriod={status.payPeriod}
+              discretionarySpending={status.discretionarySpending}
             />
           </aside>
         )}

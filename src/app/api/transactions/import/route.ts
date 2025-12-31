@@ -1,34 +1,52 @@
 import { NextRequest, NextResponse } from 'next/server';
 import { supabase } from '@/lib/supabase';
+import { transactionCategorizer } from '@/lib/categorization-engine';
 import crypto from 'crypto';
 
 function generateHash(str: string): string {
   return crypto.createHash('md5').update(str).digest('hex');
 }
 
-function parseCSV(content: string): Record<string, string>[] {
+function parseCSV(content: string): { headers: string[], rows: Record<string, string>[] } {
   const lines = content.trim().split('\n');
-  if (lines.length < 2) return [];
+  if (lines.length < 2) return { headers: [], rows: [] };
 
-  const headers = lines[0].split(',').map(h => h.trim().replace(/^"|"$/g, ''));
+  // Parse headers - handle quoted headers
+  const headerLine = lines[0];
+  const headers: string[] = [];
+  let current = '';
+  let inQuotes = false;
+
+  for (const char of headerLine) {
+    if (char === '"') {
+      inQuotes = !inQuotes;
+    } else if (char === ',' && !inQuotes) {
+      headers.push(current.trim().replace(/^"|"$/g, ''));
+      current = '';
+    } else {
+      current += char;
+    }
+  }
+  headers.push(current.trim().replace(/^"|"$/g, ''));
+
   const rows: Record<string, string>[] = [];
 
   for (let i = 1; i < lines.length; i++) {
     const values: string[] = [];
-    let current = '';
-    let inQuotes = false;
+    current = '';
+    inQuotes = false;
 
     for (const char of lines[i]) {
       if (char === '"') {
         inQuotes = !inQuotes;
       } else if (char === ',' && !inQuotes) {
-        values.push(current.trim());
+        values.push(current.trim().replace(/^"|"$/g, ''));
         current = '';
       } else {
         current += char;
       }
     }
-    values.push(current.trim());
+    values.push(current.trim().replace(/^"|"$/g, ''));
 
     const row: Record<string, string> = {};
     headers.forEach((header, index) => {
@@ -37,16 +55,53 @@ function parseCSV(content: string): Record<string, string>[] {
     rows.push(row);
   }
 
-  return rows;
+  return { headers, rows };
+}
+
+function findColumn(row: Record<string, string>, possibleNames: string[]): string {
+  for (const name of possibleNames) {
+    // Try exact match first
+    if (row[name] !== undefined) return row[name];
+    // Try case-insensitive match
+    const key = Object.keys(row).find(k => k.toLowerCase() === name.toLowerCase());
+    if (key) return row[key];
+  }
+  return '';
 }
 
 function parseDate(dateStr: string): string {
-  // Handle various date formats
+  if (!dateStr) return '';
+
+  // Handle MM/DD/YYYY format
+  const mmddyyyy = dateStr.match(/^(\d{1,2})\/(\d{1,2})\/(\d{4})$/);
+  if (mmddyyyy) {
+    const [, month, day, year] = mmddyyyy;
+    return `${year}-${month.padStart(2, '0')}-${day.padStart(2, '0')}`;
+  }
+
+  // Handle YYYY-MM-DD format
+  const isoFormat = dateStr.match(/^(\d{4})-(\d{2})-(\d{2})$/);
+  if (isoFormat) {
+    return dateStr;
+  }
+
+  // Try standard date parsing
   const date = new Date(dateStr);
   if (!isNaN(date.getTime())) {
     return date.toISOString().split('T')[0];
   }
-  return dateStr;
+
+  return '';
+}
+
+function parseAmount(amountStr: string): number {
+  if (!amountStr) return 0;
+  // Remove currency symbols, spaces, and handle parentheses for negatives
+  let cleaned = amountStr.replace(/[$,\s]/g, '');
+  if (cleaned.startsWith('(') && cleaned.endsWith(')')) {
+    cleaned = '-' + cleaned.slice(1, -1);
+  }
+  return parseFloat(cleaned) || 0;
 }
 
 export async function POST(request: NextRequest) {
@@ -62,21 +117,57 @@ export async function POST(request: NextRequest) {
     }
 
     const content = await file.text();
-    const rows = parseCSV(content);
+    const { headers, rows } = parseCSV(content);
+
+    console.log('CSV Headers found:', headers);
+    console.log('First row sample:', rows[0]);
 
     if (rows.length === 0) {
       return NextResponse.json(
-        { error: 'No valid transactions found in CSV' },
+        { error: `No data rows found. Headers detected: ${headers.join(', ')}` },
         { status: 400 }
       );
     }
 
-    // Map Copilot CSV columns to our schema
+    // Flexible column mapping - try many possible names
+    // Copilot Money exports use these columns based on their format
+    const dateColumns = ['date', 'Date', 'DATE', 'Transaction Date', 'transaction_date', 'posted_date', 'Posted Date'];
+    const descColumns = ['name', 'Name', 'NAME', 'description', 'Description', 'DESCRIPTION', 'merchant', 'Merchant', 'MERCHANT', 'payee', 'Payee'];
+    const amountColumns = ['amount', 'Amount', 'AMOUNT', 'transaction_amount', 'value', 'Value'];
+    const categoryColumns = ['category', 'Category', 'CATEGORY', 'type', 'Type'];
+
+    // Check if we can find required columns
+    const sampleRow = rows[0];
+    const hasDate = dateColumns.some(col => Object.keys(sampleRow).some(k => k.toLowerCase() === col.toLowerCase()));
+    const hasDesc = descColumns.some(col => Object.keys(sampleRow).some(k => k.toLowerCase() === col.toLowerCase()));
+    const hasAmount = amountColumns.some(col => Object.keys(sampleRow).some(k => k.toLowerCase() === col.toLowerCase()));
+
+    if (!hasDate || !hasAmount) {
+      return NextResponse.json(
+        {
+          error: `Could not find required columns. Found: [${headers.join(', ')}]. Need: date column and amount column.`,
+          headers: headers
+        },
+        { status: 400 }
+      );
+    }
+
+    // Map rows to transactions with intelligent categorization
     const transactions = rows.map(row => {
-      const date = parseDate(row['Date'] || row['date'] || '');
-      const description = row['Description'] || row['description'] || row['Merchant'] || '';
-      const amount = parseFloat(row['Amount'] || row['amount'] || '0');
-      const category = row['Category'] || row['category'] || 'Other';
+      const dateStr = findColumn(row, dateColumns);
+      const description = findColumn(row, descColumns) || 'Unknown';
+      const amountStr = findColumn(row, amountColumns);
+      const originalCategory = findColumn(row, categoryColumns) || 'Other';
+
+      const date = parseDate(dateStr);
+      const amount = parseAmount(amountStr);
+
+      // Apply intelligent categorization
+      const categoryPrediction = transactionCategorizer.categorizeTransaction(
+        description, 
+        amount, 
+        originalCategory
+      );
 
       const hash = generateHash(`${date}${description}${amount}`);
 
@@ -84,11 +175,27 @@ export async function POST(request: NextRequest) {
         date,
         description,
         amount,
-        category,
+        category: categoryPrediction.category,
+        category_confidence: categoryPrediction.confidence,
+        category_reasoning: categoryPrediction.reasoning,
+        original_category: originalCategory,
         hash,
         is_excluded: false
       };
-    }).filter(t => t.date && t.description && !isNaN(t.amount));
+    }).filter(t => t.date && !isNaN(t.amount) && t.amount !== 0);
+
+    console.log(`Parsed ${transactions.length} valid transactions from ${rows.length} rows`);
+
+    if (transactions.length === 0) {
+      return NextResponse.json(
+        {
+          error: `0 valid transactions found. Check that dates are in MM/DD/YYYY or YYYY-MM-DD format. Headers found: [${headers.join(', ')}]`,
+          headers: headers,
+          sampleRow: rows[0]
+        },
+        { status: 400 }
+      );
+    }
 
     // Get existing transaction hashes
     const { data: existing } = await supabase
@@ -107,7 +214,10 @@ export async function POST(request: NextRequest) {
         .from('transactions')
         .insert(newTransactions);
 
-      if (error) throw error;
+      if (error) {
+        console.error('Supabase insert error:', error);
+        throw error;
+      }
     }
 
     // Update last import timestamp
@@ -126,17 +236,19 @@ export async function POST(request: NextRequest) {
     return NextResponse.json({
       imported: newTransactions.length,
       duplicates: duplicateCount,
+      totalParsed: transactions.length,
       dateRange: dates.length > 0 ? {
         start: new Date(Math.min(...dates.map(d => d.getTime()))).toISOString().split('T')[0],
         end: new Date(Math.max(...dates.map(d => d.getTime()))).toISOString().split('T')[0]
       } : null,
       categories,
-      totalSpend: Math.round(totalSpend * 100) / 100
+      totalSpend: Math.round(totalSpend * 100) / 100,
+      headers: headers
     });
   } catch (error) {
     console.error('Error importing transactions:', error);
     return NextResponse.json(
-      { error: 'Failed to import transactions' },
+      { error: `Failed to import transactions: ${error instanceof Error ? error.message : 'Unknown error'}` },
       { status: 500 }
     );
   }
