@@ -80,6 +80,7 @@ export default function Home() {
   const [status, setStatus] = useState<StatusData | null>(null);
   const [showUpdateModal, setShowUpdateModal] = useState(false);
   const [showStaleWarning, setShowStaleWarning] = useState(false);
+  const [showMobileDrawer, setShowMobileDrawer] = useState(false);
   const messagesEndRef = useRef<HTMLDivElement>(null);
 
   useEffect(() => {
@@ -218,10 +219,35 @@ export default function Home() {
       <header className="flex-shrink-0 border-b border-zinc-800 bg-zinc-900 px-4 py-3">
         <div className="max-w-6xl mx-auto">
           <div className="flex items-center justify-between">
-            <h1 className="text-lg font-semibold text-zinc-100">Financial Advisor</h1>
+            {/* Mobile: Hamburger + Daily Limit */}
+            <div className="flex items-center gap-3">
+              <button
+                onClick={() => setShowMobileDrawer(true)}
+                className="lg:hidden p-2 -ml-2 text-zinc-400 hover:text-zinc-200"
+                aria-label="Open dashboard menu"
+              >
+                <svg className="w-6 h-6" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                  <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M4 6h16M4 12h16M4 18h16" />
+                </svg>
+              </button>
+              <h1 className="text-lg font-semibold text-zinc-100">Financial Advisor</h1>
+            </div>
+
+            {/* Mobile: Quick spending status */}
+            {status && (
+              <div className="lg:hidden flex items-center gap-2">
+                <div className={`text-sm font-bold ${
+                  status.spendingStatus === 'stop' ? 'text-red-400' :
+                  status.spendingStatus === 'caution' ? 'text-amber-400' : 'text-emerald-400'
+                }`}>
+                  ${status.dailySpendingLimit}/day
+                </div>
+              </div>
+            )}
+
             <Link
               href="/settings"
-              className="text-zinc-400 hover:text-zinc-300 text-sm"
+              className="text-zinc-400 hover:text-zinc-300 text-sm hidden lg:block"
             >
               Settings
             </Link>
@@ -344,6 +370,60 @@ export default function Home() {
           </footer>
         </div>
       </div>
+
+      {/* Mobile Dashboard Drawer */}
+      {showMobileDrawer && (
+        <div className="fixed inset-0 z-50 lg:hidden">
+          {/* Backdrop */}
+          <div
+            className="absolute inset-0 bg-black/60"
+            onClick={() => setShowMobileDrawer(false)}
+          />
+          {/* Drawer */}
+          <div className="absolute inset-y-0 left-0 w-80 max-w-[85vw] bg-zinc-950 border-r border-zinc-800 overflow-y-auto">
+            <div className="sticky top-0 bg-zinc-950 border-b border-zinc-800 p-4 flex items-center justify-between">
+              <h2 className="font-semibold text-zinc-100">Dashboard</h2>
+              <button
+                onClick={() => setShowMobileDrawer(false)}
+                className="p-2 text-zinc-400 hover:text-zinc-200"
+                aria-label="Close dashboard"
+              >
+                <svg className="w-6 h-6" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                  <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M6 18L18 6M6 6l12 12" />
+                </svg>
+              </button>
+            </div>
+            <div className="p-4">
+              {status && status.debts && (
+                <Dashboard
+                  debts={status.debts}
+                  goals={status.goals || []}
+                  totalSavings={status.totalSavings}
+                  totalCash={status.totalCash}
+                  totalInvestments={status.totalInvestments}
+                  totalCreditCardDebt={status.totalCreditCardDebt}
+                  budgetRemaining={status.budgetRemaining}
+                  totalBudget={status.totalBudget || 0}
+                  daysUntilPayday={status.daysUntilPayday}
+                  dailySpendingLimit={status.dailySpendingLimit}
+                  spendingStatus={status.spendingStatus}
+                  payPeriod={status.payPeriod}
+                  discretionarySpending={status.discretionarySpending}
+                />
+              )}
+              <div className="mt-4 pt-4 border-t border-zinc-800">
+                <Link
+                  href="/settings"
+                  className="block text-center text-zinc-400 hover:text-zinc-300 text-sm py-2"
+                  onClick={() => setShowMobileDrawer(false)}
+                >
+                  Settings
+                </Link>
+              </div>
+            </div>
+          </div>
+        </div>
+      )}
 
       {/* Update Balances Modal */}
       {showUpdateModal && (
